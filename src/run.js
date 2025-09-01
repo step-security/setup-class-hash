@@ -3,7 +3,7 @@ import * as tc from "@actions/tool-cache";
 import {
   determineVersion,
   versionWithPrefix,
-  downloadClassHash,
+  fetchAndExtractTool,
   OsInfo,
 } from "./util";
 const axios = require("axios")
@@ -14,7 +14,7 @@ async function validateSubscription() {
   try {
     await axios.get(API_URL, {timeout: 3000})
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 403) {
+    if (error.response && error.response.status === 403) {
       core.error(
         'Subscription is not valid. Reach out to support@stepsecurity.io'
       )
@@ -25,32 +25,39 @@ async function validateSubscription() {
   }
 }
 
-export default async function main() {
+async function setupClassHashTool(processedVersion, systemInfo) {
+  const cachedPath = tc.find("class-hash", processedVersion, systemInfo);
+  
+  if (cachedPath) {
+    return cachedPath;
+  }
+
+  const downloadedPath = await fetchAndExtractTool(processedVersion);
+  const finalPath = await tc.cacheDir(
+    downloadedPath,
+    "class-hash",
+    processedVersion,
+    systemInfo,
+  );
+  
+  return finalPath;
+}
+
+export default async function run() {
   try {
     await validateSubscription();
-    const versionInput = core.getInput("version");
-    core.info(`Input ${versionInput}`);
+    
+    const inputVersion = core.getInput("version");
+    core.info(`Input ${inputVersion}`);
 
-    const version = await determineVersion(versionInput);
-    const osInfo = OsInfo();
+    const processedVersion = await determineVersion(inputVersion);
+    const systemInfo = OsInfo();
+    const displayVersion = versionWithPrefix(processedVersion);
 
-    await core.group(
-      `Setting up class-hash ${versionWithPrefix(version)}`,
-      async () => {
-        let pathToCli = tc.find("class-hash", version, osInfo);
-        if (!pathToCli) {
-          const downloadPath = await downloadClassHash(version);
-          pathToCli = await tc.cacheDir(
-            downloadPath,
-            "class-hash",
-            version,
-            osInfo,
-          );
-        }
-
-        core.addPath(pathToCli);
-      },
-    );
+    await core.group(`Setting up class-hash ${displayVersion}`, async () => {
+      const toolPath = await setupClassHashTool(processedVersion, systemInfo);
+      core.addPath(toolPath);
+    });
   } catch (error) {
     core.setFailed(error);
   }

@@ -38819,36 +38819,36 @@ function OsInfo() {
   return `${architecture}-${platformInfo}`;
 }
 
-async function downloadClassHash(version) {
-  const osInfo = OsInfo();
-  const tag = versionWithPrefix(version);
-  const basename = `class-hash-${tag}-${osInfo}`;
-  const extension = "tar.gz";
-  const repository = "ericnordelo/starknet-class-hash";
-  const downloadUrl = `https://github.com/${repository}/releases/download/${tag}/${basename}.${extension}`;
+async function fetchAndExtractTool(releaseVersion) {
+  const platformString = OsInfo();
+  const versionTag = versionWithPrefix(releaseVersion);
+  const archiveFilename = `class-hash-${versionTag}-${platformString}`;
+  const fileExtension = "tar.gz";
+  const githubRepo = "ericnordelo/starknet-class-hash";
+  const releaseUrl = `https://github.com/${githubRepo}/releases/download/${versionTag}/${archiveFilename}.${fileExtension}`;
 
-  core.info(`Downloading class-hash from ${downloadUrl}`);
-  const pathToTarball = await tool_cache.downloadTool(downloadUrl);
-  const extractedPath = await tool_cache.extractTar(pathToTarball);
+  core.info(`Downloading class-hash from ${releaseUrl}`);
+  const compressedFilePath = await tool_cache.downloadTool(releaseUrl);
+  const unpackedDirectory = await tool_cache.extractTar(compressedFilePath);
 
-  const pathToCli = await findDirectory(extractedPath);
+  const toolDirectory = await locateInnerDirectory(unpackedDirectory);
 
-  core.debug(`Extracted to ${pathToCli}`);
-  return pathToCli;
+  core.debug(`Extracted to ${toolDirectory}`);
+  return toolDirectory;
 }
 
-async function findDirectory(extractedPath) {
-  const dirEntries = await promises_default().readdir(extractedPath, {
+async function locateInnerDirectory(parentPath) {
+  const contents = await promises_default().readdir(parentPath, {
     withFileTypes: true,
   });
 
-  for (const dir of dirEntries) {
-    if (dir.isDirectory()) {
-      return external_path_default().join(extractedPath, dir.name);
+  for (const entry of contents) {
+    if (entry.isDirectory()) {
+      return external_path_default().join(parentPath, entry.name);
     }
   }
 
-  throw new Error(`Could not find inner directory in ${extractedPath}`);
+  throw new Error(`Could not find inner directory in ${parentPath}`);
 }
 ;// CONCATENATED MODULE: ./src/run.js
 
@@ -38862,7 +38862,7 @@ async function validateSubscription() {
   try {
     await axios.get(API_URL, {timeout: 3000})
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 403) {
+    if (error.response && error.response.status === 403) {
       core.error(
         'Subscription is not valid. Reach out to support@stepsecurity.io'
       )
@@ -38873,32 +38873,39 @@ async function validateSubscription() {
   }
 }
 
-async function main() {
+async function setupClassHashTool(processedVersion, systemInfo) {
+  const cachedPath = tool_cache.find("class-hash", processedVersion, systemInfo);
+  
+  if (cachedPath) {
+    return cachedPath;
+  }
+
+  const downloadedPath = await fetchAndExtractTool(processedVersion);
+  const finalPath = await tool_cache.cacheDir(
+    downloadedPath,
+    "class-hash",
+    processedVersion,
+    systemInfo,
+  );
+  
+  return finalPath;
+}
+
+async function run() {
   try {
     await validateSubscription();
-    const versionInput = core.getInput("version");
-    core.info(`Input ${versionInput}`);
+    
+    const inputVersion = core.getInput("version");
+    core.info(`Input ${inputVersion}`);
 
-    const version = await determineVersion(versionInput);
-    const osInfo = OsInfo();
+    const processedVersion = await determineVersion(inputVersion);
+    const systemInfo = OsInfo();
+    const displayVersion = versionWithPrefix(processedVersion);
 
-    await core.group(
-      `Setting up class-hash ${versionWithPrefix(version)}`,
-      async () => {
-        let pathToCli = tool_cache.find("class-hash", version, osInfo);
-        if (!pathToCli) {
-          const downloadPath = await downloadClassHash(version);
-          pathToCli = await tool_cache.cacheDir(
-            downloadPath,
-            "class-hash",
-            version,
-            osInfo,
-          );
-        }
-
-        core.addPath(pathToCli);
-      },
-    );
+    await core.group(`Setting up class-hash ${displayVersion}`, async () => {
+      const toolPath = await setupClassHashTool(processedVersion, systemInfo);
+      core.addPath(toolPath);
+    });
   } catch (error) {
     core.setFailed(error);
   }
@@ -38906,7 +38913,7 @@ async function main() {
 ;// CONCATENATED MODULE: ./index.js
 
 
-main();
+run();
 })();
 
 module.exports = __webpack_exports__;

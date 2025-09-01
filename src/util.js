@@ -49,34 +49,34 @@ export function OsInfo() {
   return `${architecture}-${platformInfo}`;
 }
 
-export async function downloadClassHash(version) {
-  const osInfo = OsInfo();
-  const tag = versionWithPrefix(version);
-  const basename = `class-hash-${tag}-${osInfo}`;
-  const extension = "tar.gz";
-  const repository = "ericnordelo/starknet-class-hash";
-  const downloadUrl = `https://github.com/${repository}/releases/download/${tag}/${basename}.${extension}`;
+export async function fetchAndExtractTool(releaseVersion) {
+  const platformString = OsInfo();
+  const versionTag = versionWithPrefix(releaseVersion);
+  const archiveFilename = `class-hash-${versionTag}-${platformString}`;
+  const fileExtension = "tar.gz";
+  const githubRepo = "ericnordelo/starknet-class-hash";
+  const releaseUrl = `https://github.com/${githubRepo}/releases/download/${versionTag}/${archiveFilename}.${fileExtension}`;
 
-  core.info(`Downloading class-hash from ${downloadUrl}`);
-  const pathToTarball = await tc.downloadTool(downloadUrl);
-  const extractedPath = await tc.extractTar(pathToTarball);
+  core.info(`Downloading class-hash from ${releaseUrl}`);
+  const compressedFilePath = await tc.downloadTool(releaseUrl);
+  const unpackedDirectory = await tc.extractTar(compressedFilePath);
 
-  const pathToCli = await findDirectory(extractedPath);
+  const toolDirectory = await locateInnerDirectory(unpackedDirectory);
 
-  core.debug(`Extracted to ${pathToCli}`);
-  return pathToCli;
+  core.debug(`Extracted to ${toolDirectory}`);
+  return toolDirectory;
 }
 
-async function findDirectory(extractedPath) {
-  const dirEntries = await fs.readdir(extractedPath, {
+async function locateInnerDirectory(parentPath) {
+  const contents = await fs.readdir(parentPath, {
     withFileTypes: true,
   });
 
-  for (const dir of dirEntries) {
-    if (dir.isDirectory()) {
-      return path.join(extractedPath, dir.name);
+  for (const entry of contents) {
+    if (entry.isDirectory()) {
+      return path.join(parentPath, entry.name);
     }
   }
 
-  throw new Error(`Could not find inner directory in ${extractedPath}`);
+  throw new Error(`Could not find inner directory in ${parentPath}`);
 }
