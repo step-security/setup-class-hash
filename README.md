@@ -1,0 +1,1 @@
+# setup-class-hash
