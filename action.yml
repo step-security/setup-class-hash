@@ -1,0 +1,10 @@
+name: Setup starknet-class-hash
+description: Downloads and installs the starknet-class-hash CLI tool for use in GitHub Actions workflows
+author: step-security
+inputs:
+  version:
+    description: Version of starknet-class-hash to install (e.g., '0.1.0' or 'v0.1.0')
+    required: true
+runs:
+  using: "node20"
+  main: "dist/index.js"
