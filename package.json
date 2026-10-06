@@ -14,10 +14,9 @@
   "author": "step-security",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^2.0.0",
-    "@actions/github": "^6.0.0",
-    "@actions/tool-cache": "^2.0.1",
-    "@vercel/ncc": "^0.38.3",
-    "axios": "^1.11.0"
+    "@actions/core": "^2.0.3",
+    "@actions/tool-cache": "^3.0.1",
+    "@vercel/ncc": "^0.45.0",
+    "axios": "^1.20.0"
   }
 }
